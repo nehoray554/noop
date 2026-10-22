@@ -30,6 +30,7 @@ jobs:
           xcodebuild -scheme NOOPiOS -configuration Release -destination 'generic/platform=iOS'
           -derivedDataPath build/dd
           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+          CURRENT_PROJECT_VERSION=$((5000 + ${{ github.run_number }}))
           build
       - name: Package .ipa
         run: |
@@ -51,3 +52,50 @@ jobs:
             gh release create hebrew-latest --repo "$GITHUB_REPOSITORY" --prerelease \
               --title "NOOP בעברית" --notes "גרסת iOS בעברית — התקנה דרך SideStore / AltStore."
           gh release upload hebrew-latest NOOP-hebrew.ipa --repo "$GITHUB_REPOSITORY" --clobber
+      - name: Publish SideStore / AltStore source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.run_number }}
+        run: |
+          VER=$(grep -m1 'MARKETING_VERSION:' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
+          BUILD=$((5000 + RUN))
+          SIZE=$(stat -f%z NOOP-hebrew.ipa)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          BASE="https://github.com/$GITHUB_REPOSITORY"
+          python3 - "$VER" "$BUILD" "$SIZE" "$DATE" "$BASE" <<'PY'
+          import json, sys
+          ver, build, size, date, base = sys.argv[1:]
+          icon = base + "/raw/main/Strand/Resources/Assets.xcassets/AppIcon.appiconset/icon_512x512.png"
+          src = {
+            "name": "NOOP בעברית",
+            "identifier": "com.noopapp.noop.hebrew",
+            "sourceURL": base + "/releases/download/hebrew-latest/sidestore-source.json",
+            "subtitle": "גרסה אישית בעברית של NOOP",
+            "iconURL": icon,
+            "website": base,
+            "tintColor": "44E2B0",
+            "apps": [{
+              "name": "NOOP",
+              "bundleIdentifier": "com.noopapp.noop",
+              "developerName": "NoopApp (Hebrew build)",
+              "subtitle": "רצועת WHOOP, אופליין, בעברית",
+              "localizedDescription": "גרסה בעברית של NOOP. מבוסס על https://github.com/ryanbr/noop (PolyForm Noncommercial).",
+              "iconURL": icon,
+              "tintColor": "44E2B0",
+              "category": "healthcare-fitness",
+              "screenshotURLs": [],
+              "versions": [{
+                "version": ver,
+                "buildVersion": build,
+                "date": date,
+                "localizedDescription": f"בנייה {build}",
+                "downloadURL": base + "/releases/download/hebrew-latest/NOOP-hebrew.ipa",
+                "size": int(size),
+                "minOSVersion": "17.0"
+              }]
+            }],
+            "news": []
+          }
+          json.dump(src, open("sidestore-source.json", "w"), ensure_ascii=False, indent=2)
+          PY
+          gh release upload hebrew-latest sidestore-source.json --repo "$GITHUB_REPOSITORY" --clobber
