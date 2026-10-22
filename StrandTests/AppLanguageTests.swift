@@ -21,6 +21,11 @@ final class AppLanguageTests: XCTestCase {
         XCTAssertEqual(AppLanguage.polish.autonym, "Polski")
     }
 
+    func testHebrewCatalogTagIsSupported() {
+        XCTAssertEqual(AppLanguage.resolve("he"), .hebrew)
+        XCTAssertEqual(AppLanguage.hebrew.autonym, "עברית")
+    }
+
     func testExplicitLanguageWritesAndSystemRemovesAppleOverride() throws {
         let suiteName = "AppLanguageTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

@@ -1,0 +1,53 @@
+# Builds the Hebrew NOOP iOS app as an unsigned .ipa for sideloading with SideStore / AltStore.
+# Runs on every push to main, or manually from the Actions tab. The .ipa is attached to the
+# rolling "hebrew-latest" release so SideStore/AltStore can always fetch the newest build.
+name: Hebrew iOS build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hebrew-ios
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build NOOPiOS (unsigned, Release)
+        run: >-
+          xcodebuild -scheme NOOPiOS -configuration Release -destination 'generic/platform=iOS'
+          -derivedDataPath build/dd
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+          build
+      - name: Package .ipa
+        run: |
+          APP=$(find build/dd/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -type d | head -1)
+          test -n "$APP" || { echo ".app not found"; exit 1; }
+          rm -rf "$APP/Watch"
+          Tools/prepare-ios-sideload-app.sh "$APP"
+          rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
+          zip -qr NOOP-hebrew.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NOOP-hebrew-ipa
+          path: NOOP-hebrew.ipa
+      - name: Publish to rolling release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view hebrew-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create hebrew-latest --repo "$GITHUB_REPOSITORY" --prerelease \
+              --title "NOOP בעברית" --notes "גרסת iOS בעברית — התקנה דרך SideStore / AltStore."
+          gh release upload hebrew-latest NOOP-hebrew.ipa --repo "$GITHUB_REPOSITORY" --clobber
