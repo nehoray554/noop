@@ -37,6 +37,13 @@ jobs:
           APP=$(find build/dd/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -type d | head -1)
           test -n "$APP" || { echo ".app not found"; exit 1; }
           rm -rf "$APP/Watch"
+          # Lite variant: no widget extension, no extra entitlements — fewest things for a free
+          # Apple ID signer (AltServer "Sideload .ipa", Sideloadly) to trip over.
+          rm -rf lite && mkdir -p lite/Payload && cp -R "$APP" lite/Payload/
+          LITE_APP=$(find lite/Payload -maxdepth 1 -name '*.app' -type d | head -1)
+          rm -rf "$LITE_APP/PlugIns" "$LITE_APP/_CodeSignature"
+          codesign --force --deep --sign - "$LITE_APP"
+          (cd lite && zip -qry ../NOOP-hebrew-lite.ipa Payload)
           Tools/prepare-ios-sideload-app.sh "$APP"
           rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
           zip -qr NOOP-hebrew.ipa Payload
@@ -51,7 +58,7 @@ jobs:
           gh release view hebrew-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create hebrew-latest --repo "$GITHUB_REPOSITORY" --prerelease \
               --title "NOOP בעברית" --notes "גרסת iOS בעברית — התקנה דרך SideStore / AltStore."
-          gh release upload hebrew-latest NOOP-hebrew.ipa --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload hebrew-latest NOOP-hebrew.ipa NOOP-hebrew-lite.ipa --repo "$GITHUB_REPOSITORY" --clobber
       - name: Publish SideStore / AltStore source
         env:
           GH_TOKEN: ${{ github.token }}
