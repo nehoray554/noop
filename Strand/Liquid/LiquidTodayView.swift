@@ -2183,6 +2183,8 @@ private struct LiquidWordmark: View {
                     .foregroundStyle(StrandPalette.textTertiary)
             }
         }
+        // A Latin brand name: keep the letter row left-to-right even in RTL languages (Hebrew).
+        .environment(\.layoutDirection, .leftToRight)
         .shadow(color: .black.opacity(0.25), radius: 6, y: 1)
         .rotationEffect(.degrees(rot))
         .scaleEffect(x: scaleX, y: scaleY)
